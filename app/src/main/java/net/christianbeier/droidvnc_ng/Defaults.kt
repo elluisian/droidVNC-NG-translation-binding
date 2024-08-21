@@ -41,6 +41,10 @@ class Defaults {
     }
 
     @EncodeDefault
+    var listenInterface = "0.0.0.0"
+        private set
+
+    @EncodeDefault
     var port = 5900
         private set
 

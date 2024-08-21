@@ -73,6 +73,7 @@ public class MainService extends Service {
     public static final String ACTION_CONNECT_REPEATER = "net.christianbeier.droidvnc_ng.ACTION_CONNECT_REPEATER";
     public static final String EXTRA_REQUEST_ID = "net.christianbeier.droidvnc_ng.EXTRA_REQUEST_ID";
     public static final String EXTRA_REQUEST_SUCCESS = "net.christianbeier.droidvnc_ng.EXTRA_REQUEST_SUCCESS";
+    public static final String EXTRA_LISTEN_INTERFACE = "net.christianbeier.droidvnc_ng.EXTRA_LISTEN_INTERFACE";
     public static final String EXTRA_HOST = "net.christianbeier.droidvnc_ng.EXTRA_HOST";
     public static final String EXTRA_PORT = "net.christianbeier.droidvnc_ng.EXTRA_PORT";
     public static final String EXTRA_REPEATER_ID = "net.christianbeier.droidvnc_ng.EXTRA_REPEATER_ID";
@@ -104,6 +105,10 @@ public class MainService extends Service {
 
     final static String ACTION_HANDLE_NOTIFICATION_RESULT = "action_handle_notification_result";
 
+    // Used to correctly signal if the server is listening on the "any address" (0.0.0.0)
+    private static final String PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY = "server_last_listen_was_any" ;
+
+    private static final String PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE = "server_last_listen_interface" ;
     private static final String PREFS_KEY_SERVER_LAST_PORT = "server_last_port" ;
     private static final String PREFS_KEY_SERVER_LAST_PASSWORD = "server_last_password" ;
     private static final String PREFS_KEY_SERVER_LAST_FILE_TRANSFER = "server_last_file_transfer" ;
@@ -203,9 +208,10 @@ public class MainService extends Service {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private native boolean vncStartServer(int width, int height, int port, String desktopName, String password, String httpRootDir);
+    private native boolean vncStartServer(int width, int height, String listenIf, int port, String desktopName, String password, String httpRootDir);
     private native boolean vncStopServer();
     private native boolean vncIsActive();
+    private native int vncGetListenInterface();
     private native long vncConnectReverse(String host, int port);
     private native long vncConnectRepeater(String host, int port, String repeaterIdentifier);
     static native boolean vncNewFramebuffer(int width, int height);
@@ -338,16 +344,21 @@ public class MainService extends Service {
                 startScreenCapture();
             } else {
                 DisplayMetrics displayMetrics = Utils.getDisplayMetrics(this, Display.DEFAULT_DISPLAY);
+                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface()).toLowerCase();
                 int port = PreferenceManager.getDefaultSharedPreferences(this).getInt(PREFS_KEY_SERVER_LAST_PORT, mDefaults.getPort());
                 // get device name
                 String name = Utils.getDeviceName(this);
 
                 boolean status = vncStartServer(displayMetrics.widthPixels,
                         displayMetrics.heightPixels,
+                        listenIf,
                         port,
                         name,
                         PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_PASSWORD, mDefaults.getPassword()),
                         getFilesDir().getAbsolutePath() + File.separator + "novnc");
+
+                this.updateLastListenWasAnyFlag();
+
                 Intent answer = new Intent(ACTION_START);
                 answer.putExtra(EXTRA_REQUEST_ID, PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_START_REQUEST_ID, null));
                 answer.putExtra(EXTRA_REQUEST_SUCCESS, status);
@@ -381,14 +392,18 @@ public class MainService extends Service {
             if (mResultCode != 0 && mResultData != null
                     || (Build.VERSION.SDK_INT >= 30 && PreferenceManager.getDefaultSharedPreferences(this).getBoolean(PREFS_KEY_SERVER_LAST_FALLBACK_SCREEN_CAPTURE, false))) {
                 DisplayMetrics displayMetrics = Utils.getDisplayMetrics(this, Display.DEFAULT_DISPLAY);
+                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface()).toLowerCase();
                 int port = PreferenceManager.getDefaultSharedPreferences(this).getInt(PREFS_KEY_SERVER_LAST_PORT, mDefaults.getPort());
                 String name = Utils.getDeviceName(this);
                 boolean status = vncStartServer(displayMetrics.widthPixels,
                         displayMetrics.heightPixels,
+                        listenIf,
                         port,
                         name,
                         PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_PASSWORD, mDefaults.getPassword()),
                         getFilesDir().getAbsolutePath() + File.separator + "novnc");
+
+                this.updateLastListenWasAnyFlag();
 
                 Intent answer = new Intent(ACTION_START);
                 answer.putExtra(EXTRA_REQUEST_ID, PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_START_REQUEST_ID, null));
@@ -452,6 +467,7 @@ public class MainService extends Service {
             // Step 0: persist given arguments to be able to recover from possible crash later
             final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
             SharedPreferences.Editor ed = prefs.edit();
+            ed.putString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, intent.getStringExtra(EXTRA_LISTEN_INTERFACE) != null ? intent.getStringExtra(EXTRA_LISTEN_INTERFACE) : prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface()));
             ed.putInt(PREFS_KEY_SERVER_LAST_PORT, intent.getIntExtra(EXTRA_PORT, prefs.getInt(Constants.PREFS_KEY_SETTINGS_PORT, mDefaults.getPort())));
             ed.putString(PREFS_KEY_SERVER_LAST_PASSWORD, intent.getStringExtra(EXTRA_PASSWORD) != null ? intent.getStringExtra(EXTRA_PASSWORD) : prefs.getString(Constants.PREFS_KEY_SETTINGS_PASSWORD, mDefaults.getPassword()));
             ed.putBoolean(PREFS_KEY_SERVER_LAST_FILE_TRANSFER, intent.getBooleanExtra(EXTRA_FILE_TRANSFER, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_FILE_TRANSFER, mDefaults.getFileTransfer())));
@@ -747,6 +763,41 @@ public class MainService extends Service {
             sendBroadcast(intent);
         }
     }
+
+
+    /**
+     * It updates the flag that signals if the server is listening on the "any interface" (0.0.0.0)
+     * @return void
+     */
+    private void updateLastListenWasAnyFlag() {
+        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor ed = prefs.edit();
+        ed.putBoolean(PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY, this.vncGetListenInterface() == 0);
+        ed.apply();
+    }
+
+
+
+    static boolean isListeningOnAnyInterface() {
+        try {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(instance);
+            return prefs.getBoolean(PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY, false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+
+    static String getListenInterface() {
+        try {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(instance);
+            return prefs.getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, new Defaults(instance).getListenInterface());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+
 
     static boolean isServerActive() {
         try {

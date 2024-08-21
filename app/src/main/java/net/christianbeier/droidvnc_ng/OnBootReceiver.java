@@ -80,6 +80,33 @@ public class OnBootReceiver extends BroadcastReceiver {
                     } else {
                         context.getApplicationContext().startService(intent);
                     }
+            // autostart needs InputService on Android 10 and newer, both for the activity starts from MainService
+            // (could be reworked) but most importantly for fallback screen capture
+            if(Build.VERSION.SDK_INT >= 30 && !InputService.isConnected()) {
+                Log.w(TAG, "onReceive: configured to start, but on Android 10+ and InputService not set up, bailing out");
+                return;
+            }
+
+            Intent intent = new Intent(context, MainService.class);
+            intent.setAction(MainService.ACTION_START);
+            intent.putExtra(MainService.EXTRA_LISTEN_INTERFACE, prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, defaults.getListenInterface()));
+            intent.putExtra(MainService.EXTRA_PORT, prefs.getInt(Constants.PREFS_KEY_SETTINGS_PORT, defaults.getPort()));
+            intent.putExtra(MainService.EXTRA_PASSWORD, prefs.getString(Constants.PREFS_KEY_SETTINGS_PASSWORD, defaults.getPassword()));
+            intent.putExtra(MainService.EXTRA_FILE_TRANSFER, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_FILE_TRANSFER, defaults.getFileTransfer()));
+            intent.putExtra(MainService.EXTRA_VIEW_ONLY, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_VIEW_ONLY, defaults.getViewOnly()));
+            intent.putExtra(MainService.EXTRA_SCALING, prefs.getFloat(Constants.PREFS_KEY_SETTINGS_SCALING, defaults.getScaling()));
+            intent.putExtra(MainService.EXTRA_ACCESS_KEY, prefs.getString(Constants.PREFS_KEY_SETTINGS_ACCESS_KEY, defaults.getAccessKey()));
+            intent.putExtra(MainService.EXTRA_FALLBACK_SCREEN_CAPTURE, true); // want this on autostart
+
+            long delayMillis =  1000L * prefs.getInt(Constants.PREFS_KEY_SETTINGS_START_ON_BOOT_DELAY, defaults.getStartOnBootDelay());
+            if(delayMillis > 0) {
+                Log.i(TAG, "onReceive: configured to start delayed by " + delayMillis/1000 + "s");
+                AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                PendingIntent pendingIntent;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    pendingIntent = PendingIntent.getForegroundService(context.getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE);
+                } else {
+                    pendingIntent = PendingIntent.getService(context.getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE);
                 }
             } else {
                 Log.i(TAG, "onReceive: configured NOT to start");
