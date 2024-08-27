@@ -1,6 +1,15 @@
 <resources>
     <string name="main_activity_title">Administración de droidVNC-NG</string>
     <string name="main_activity_settings">Configuración</string>
+    <string name="main_activity_settings_listening_interface">Interfaz en escucha</string>
+    <string name="main_activity_settings_listenif_spin_any">Todas</string>
+    <string name="main_activity_settings_listenif_spin_wifi">Wi-Fi</string>
+    <string name="main_activity_settings_listenif_spin_eth">Ethernet</string>
+    <string name="main_activity_settings_listenif_spin_lpback">Loopback</string>
+    <string name="main_activity_settings_listenif_spin_tun">Tunnel</string>
+    <string name="main_activity_settings_listenif_spin_dum">Dummy</string>
+    <string name="main_activity_settings_listenif_spin_rmndata">Datos móviles</string>
+    <string name="main_activity_settings_listenif_spin_rmnipa">Aceleración IP Qualcomm</string>
     <string name="main_activity_settings_port">Puerto</string>
     <string name="main_activity_settings_port_not_listening">Conexiones entrantes deshabilitadas</string>
     <string name="main_activity_settings_password">Contraseña</string>
