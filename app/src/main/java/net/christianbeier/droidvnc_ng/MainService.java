@@ -105,9 +105,6 @@ public class MainService extends Service {
 
     final static String ACTION_HANDLE_NOTIFICATION_RESULT = "action_handle_notification_result";
 
-    // Used to correctly signal if the server is listening on the "any address" (0.0.0.0)
-    private static final String PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY = "server_last_listen_was_any" ;
-
     private static final String PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE = "server_last_listen_interface" ;
     private static final String PREFS_KEY_SERVER_LAST_PORT = "server_last_port" ;
     private static final String PREFS_KEY_SERVER_LAST_PASSWORD = "server_last_password" ;
@@ -211,7 +208,6 @@ public class MainService extends Service {
     private native boolean vncStartServer(int width, int height, String listenIf, int port, String desktopName, String password, String httpRootDir);
     private native boolean vncStopServer();
     private native boolean vncIsActive();
-    private native int vncGetListenInterface();
     private native long vncConnectReverse(String host, int port);
     private native long vncConnectRepeater(String host, int port, String repeaterIdentifier);
     static native boolean vncNewFramebuffer(int width, int height);
@@ -344,20 +340,20 @@ public class MainService extends Service {
                 startScreenCapture();
             } else {
                 DisplayMetrics displayMetrics = Utils.getDisplayMetrics(this, Display.DEFAULT_DISPLAY);
-                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface()).toLowerCase();
+
+                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface());
+                String  listenAddress = MainService.getInterfaceListeningIPv4Address(listenIf);
                 int port = PreferenceManager.getDefaultSharedPreferences(this).getInt(PREFS_KEY_SERVER_LAST_PORT, mDefaults.getPort());
                 // get device name
                 String name = Utils.getDeviceName(this);
 
                 boolean status = vncStartServer(displayMetrics.widthPixels,
                         displayMetrics.heightPixels,
-                        listenIf,
+                        listenAddress,
                         port,
                         name,
                         PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_PASSWORD, mDefaults.getPassword()),
                         getFilesDir().getAbsolutePath() + File.separator + "novnc");
-
-                this.updateLastListenWasAnyFlag();
 
                 Intent answer = new Intent(ACTION_START);
                 answer.putExtra(EXTRA_REQUEST_ID, PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_START_REQUEST_ID, null));
@@ -392,18 +388,18 @@ public class MainService extends Service {
             if (mResultCode != 0 && mResultData != null
                     || (Build.VERSION.SDK_INT >= 30 && PreferenceManager.getDefaultSharedPreferences(this).getBoolean(PREFS_KEY_SERVER_LAST_FALLBACK_SCREEN_CAPTURE, false))) {
                 DisplayMetrics displayMetrics = Utils.getDisplayMetrics(this, Display.DEFAULT_DISPLAY);
-                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface()).toLowerCase();
+
+                String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface());
+                String  listenAddress = MainService.getInterfaceListeningIPv4Address(listenIf);
                 int port = PreferenceManager.getDefaultSharedPreferences(this).getInt(PREFS_KEY_SERVER_LAST_PORT, mDefaults.getPort());
                 String name = Utils.getDeviceName(this);
                 boolean status = vncStartServer(displayMetrics.widthPixels,
                         displayMetrics.heightPixels,
-                        listenIf,
+                        listenAddress,
                         port,
                         name,
                         PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_PASSWORD, mDefaults.getPassword()),
                         getFilesDir().getAbsolutePath() + File.separator + "novnc");
-
-                this.updateLastListenWasAnyFlag();
 
                 Intent answer = new Intent(ACTION_START);
                 answer.putExtra(EXTRA_REQUEST_ID, PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_START_REQUEST_ID, null));
@@ -765,40 +761,6 @@ public class MainService extends Service {
     }
 
 
-    /**
-     * It updates the flag that signals if the server is listening on the "any interface" (0.0.0.0)
-     * @return void
-     */
-    private void updateLastListenWasAnyFlag() {
-        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        SharedPreferences.Editor ed = prefs.edit();
-        ed.putBoolean(PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY, this.vncGetListenInterface() == 0);
-        ed.apply();
-    }
-
-
-
-    static boolean isListeningOnAnyInterface() {
-        try {
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(instance);
-            return prefs.getBoolean(PREFS_KEY_SERVER_LAST_LISTEN_WAS_ANY, false);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-
-    static String getListenInterface() {
-        try {
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(instance);
-            return prefs.getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, new Defaults(instance).getListenInterface());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-
-
     static boolean isServerActive() {
         try {
             return instance.vncIsActive();
@@ -808,12 +770,88 @@ public class MainService extends Service {
     }
 
 
+
     /**
-     * Get non-loopback IPv4 addresses.
+     * Get all the available network interfaces, in the up status, which have at least one IPv4 address
+     * @return An ArrayList&lt;NetworkInterfaces&gt; containing the above-mentioned interfaces
+     */
+    static ArrayList<NetworkInterface> getAvailableNICs() {
+        ArrayList<NetworkInterface> nics = new ArrayList<>();
+
+        try {
+            // Thanks go to https://stackoverflow.com/a/20103869/361413
+            Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
+            NetworkInterface ni;
+            while (nis.hasMoreElements()) {
+                ni = nis.nextElement();
+                if (ni.isUp()) {
+                    // Check if there are actual ipv4 addresses, if so, add the NetworkInterface
+                    // Should we consider IPv6 also? Technically yes, but the program, at the moment, does not support them.
+                    for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                        if (ia.getAddress().getAddress().length == 4) {
+                            nics.add(ni);
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            //unused
+        }
+
+        return nics;
+    }
+
+
+
+    /**
+     * Gets all the ipv4s available for a single NetworkInterface
+     * @param ni the NetworkInterface to check
+     * @return an ArrayList&lt;String&gt; which contains all the collected ipv4
+     */
+    static ArrayList<String> getIPv4ForInterface(NetworkInterface ni) {
+        ArrayList<String> ipv4s = new ArrayList<>();
+
+        for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+            //filter for ipv4/ipv6
+            if (ia.getAddress().getAddress().length == 4) {
+                //4 for ipv4, 16 for ipv6
+                ipv4s.add(ia.getAddress().toString().replaceAll("/", ""));
+            }
+        }
+
+        return ipv4s;
+    }
+
+
+    /**
+     * This returns A SINGLE ipv4 address for the selected interface... giving the possibility
+     * to the server to listen to that address only.
+     * @param ifName name (techName, not friendly one) that defines the interface to be used
+     * @return if the interface 0.0.0.0 or there's some error null, otherwise, the needed ipv4
+     */
+    static String getInterfaceListeningIPv4Address(String ifName) {
+        if (!ifName.equals("0.0.0.0")) {
+            try {
+                ArrayList<String> ipv4s = MainService.getIPv4ForInterface(NetworkInterface.getByName(ifName));
+                if (ipv4s.size() > 0) {
+                    return ipv4s.get(0);
+                }
+
+            } catch (SocketException ex) {
+                // unused
+            }
+        }
+
+        return null;
+    }
+
+
+    /**
+     * Get all available IPv4 addresses for reaching the current running server.
      * @return A list of strings, each containing one IPv4 address.
      */
-    static ArrayList<String> getIPv4s() {
-
+    static ArrayList<String> getReachableIPv4s() {
         ArrayList<String> hosts = new ArrayList<>();
 
         // if running on Chrome OS, this prop is set and contains the device's IPv4 address,
@@ -825,27 +863,43 @@ public class MainService extends Service {
         }
 
         // not running on Chrome OS
+        String listenInterface = MainService.getListenInterface();
+
         try {
-            // thanks go to https://stackoverflow.com/a/20103869/361413
-            Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
-            NetworkInterface ni;
-            while (nis.hasMoreElements()) {
-                ni = nis.nextElement();
-                if (!ni.isLoopback()/*not loopback*/ && ni.isUp()/*it works now*/) {
-                    for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-                        //filter for ipv4/ipv6
-                        if (ia.getAddress().getAddress().length == 4) {
-                            //4 for ipv4, 16 for ipv6
-                            hosts.add(ia.getAddress().toString().replaceAll("/", ""));
+            if (listenInterface.equals("0.0.0.0")) {
+                // Any mode: get all the available NICs and add their IPv4
+                ArrayList<NetworkInterface> nics = MainService.getAvailableNICs();
+                for (NetworkInterface nic : nics) {
+                    if (!nic.isLoopback()) {
+                        ArrayList<String> ipv4s = MainService.getIPv4ForInterface(nic);
+                        for (String ipv4 : ipv4s) {
+                            hosts.add(ipv4);
                         }
                     }
                 }
+            } else {
+                // Single interface: get all its IPv4 addresses
+                ArrayList<String> ipv4s = MainService.getIPv4ForInterface(NetworkInterface.getByName(listenInterface));
+                for (String ipv4 : ipv4s) {
+                    hosts.add(ipv4);
+                }
             }
-        } catch (SocketException e) {
-            //unused
+        } catch (SocketException ex) {
+            // unused
         }
 
         return hosts;
+    }
+
+
+
+    static String getListenInterface() {
+        try {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(instance);
+            return prefs.getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, new Defaults(instance).getListenInterface());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     static int getPort() {
@@ -934,5 +988,4 @@ public class MainService extends Service {
             return null;
         }
     }
-
 }

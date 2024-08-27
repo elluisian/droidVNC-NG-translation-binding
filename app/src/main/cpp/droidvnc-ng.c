@@ -503,11 +503,3 @@ JNIEXPORT jint JNICALL Java_net_christianbeier_droidvnc_1ng_MainService_vncGetFr
 JNIEXPORT jboolean JNICALL Java_net_christianbeier_droidvnc_1ng_MainService_vncIsActive(JNIEnv *env, jobject thiz) {
     return theScreen && rfbIsActive(theScreen);
 }
-
-JNIEXPORT jint JNICALL Java_net_christianbeier_droidvnc_1ng_MainService_vncGetListenInterface(JNIEnv *env, jobject thiz) {
-    if (!theScreen) {
-        return -1;
-    }
-
-    return theScreen->listenInterface;
-}

@@ -53,12 +53,16 @@ import android.util.Pair;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Spinner;
+import android.widget.AdapterView.OnItemSelectedListener;
+import android.widget.AdapterView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -307,33 +311,30 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        final EditText listenInterface = findViewById(R.id.settings_listen_interface);
-        listenInterface.setText(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface()));
-        listenInterface.addTextChangedListener(new TextWatcher() {
+        ListenIfAdapter lsif = new ListenIfAdapter(MainService.getAvailableNICs(), this);
+        final Spinner listenInterfaceSpin = findViewById(R.id.settings_listening_interface);
+        listenInterfaceSpin.setAdapter(lsif);
+        listenInterfaceSpin.setOnItemSelectedListener(new OnItemSelectedListener() {
             @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                // only save new value if it differs from the default and was not saved before
-                if(!(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, null) == null && charSequence.toString().equals(mDefaults.getListenInterface()))) {
+            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+                ListenIfAdapter.NetworkInterfaceData d = (ListenIfAdapter.NetworkInterfaceData)parent.getItemAtPosition(pos);
+                if(!(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, null) == null && d.getName().equals(mDefaults.getListenInterface()))) {
                     SharedPreferences.Editor ed = prefs.edit();
-                    ed.putString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, charSequence.toString());
+                    ed.putString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, d.getName());
                     ed.apply();
                 }
             }
 
             @Override
-            public void afterTextChanged(Editable editable) {
+            public void onNothingSelected(AdapterView<?> parent) {
 
             }
         });
-        listenInterface.setOnFocusChangeListener((v, hasFocus) -> {
-            // move cursor to end of text
-            listenInterface.setSelection(listenInterface.getText().length());
-        });
+        // Restore last selected interface
+        listenInterfaceSpin.setSelection(
+            lsif.getItemPositionByIfName(
+               prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface())));
+
 
 
         final EditText port = findViewById(R.id.settings_port);
@@ -787,14 +788,7 @@ public class MainActivity extends AppCompatActivity {
         if(MainService.getPort() >= 0) {
             HashMap<ClickableSpan, Pair<Integer,Integer>> spans = new HashMap<>();
             // uhh there must be a nice functional way for this
-            ArrayList<String> hosts = null;
-
-            if (MainService.isListeningOnAnyInterface()) {
-                hosts = MainService.getIPv4s();
-            } else {
-                hosts = new ArrayList<>();
-                hosts.add(MainService.getListenInterface());
-            }
+            ArrayList<String> hosts = MainService.getReachableIPv4s();
 
             StringBuilder sb = new StringBuilder();
             sb.append(getString(R.string.main_activity_address)).append(" ");
@@ -836,7 +830,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.outbound_buttons).setVisibility(View.VISIBLE);
 
         // indicate that changing these settings does not have an effect when the server is running
-        findViewById(R.id.settings_listen_interface).setEnabled(false);
+        findViewById(R.id.settings_listening_interface).setEnabled(false);
         findViewById(R.id.settings_port).setEnabled(false);
         findViewById(R.id.settings_password).setEnabled(false);
         findViewById(R.id.settings_access_key).setEnabled(false);
@@ -862,7 +856,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.outbound_buttons).setVisibility(View.GONE);
 
         // indicate that changing these settings does have an effect when the server is stopped
-        findViewById(R.id.settings_listen_interface).setEnabled(true);
+        findViewById(R.id.settings_listening_interface).setEnabled(true);
         findViewById(R.id.settings_port).setEnabled(true);
         findViewById(R.id.settings_password).setEnabled(true);
         findViewById(R.id.settings_access_key).setEnabled(true);
