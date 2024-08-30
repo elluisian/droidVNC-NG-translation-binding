@@ -3,13 +3,6 @@
     <string name="main_activity_settings">Einstellungen</string>
     <string name="main_activity_settings_listening_interface">Hörschnittstelle</string>
     <string name="main_activity_settings_listenif_spin_any">Alle</string>
-    <string name="main_activity_settings_listenif_spin_wifi">Wi-Fi</string>
-    <string name="main_activity_settings_listenif_spin_eth">Ethernet</string>
-    <string name="main_activity_settings_listenif_spin_lpback">Loopback</string>
-    <string name="main_activity_settings_listenif_spin_tun">Tunnel</string>
-    <string name="main_activity_settings_listenif_spin_dum">Dummy</string>
-    <string name="main_activity_settings_listenif_spin_rmndata">Mobile daten</string>
-    <string name="main_activity_settings_listenif_spin_rmnipa">Qualcomm IP Beschleunigung</string>
     <string name="main_activity_settings_port">Port</string>
     <string name="main_activity_settings_port_not_listening">Eingehende Verbindungen deaktiviert</string>
     <string name="main_activity_settings_password">Passwort</string>

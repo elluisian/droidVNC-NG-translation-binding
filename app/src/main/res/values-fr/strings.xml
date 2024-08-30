@@ -3,13 +3,6 @@
     <string name="main_activity_settings">Paramètres</string>
     <string name="main_activity_settings_listening_interface">Interface en écoute</string>
     <string name="main_activity_settings_listenif_spin_any">Toutes</string>
-    <string name="main_activity_settings_listenif_spin_wifi">Wi-Fi</string>
-    <string name="main_activity_settings_listenif_spin_eth">Ethernet</string>
-    <string name="main_activity_settings_listenif_spin_lpback">Loopback</string>
-    <string name="main_activity_settings_listenif_spin_tun">Tunnel</string>
-    <string name="main_activity_settings_listenif_spin_dum">Dummy</string>
-    <string name="main_activity_settings_listenif_spin_rmndata">Données mobiles</string>
-    <string name="main_activity_settings_listenif_spin_rmnipa">Accélération IP Qualcomm</string>
     <string name="main_activity_settings_port">Port</string>
     <string name="main_activity_settings_port_not_listening">Connexions d\'entrée désactivées</string>
     <string name="main_activity_settings_password">Mot de passe</string>

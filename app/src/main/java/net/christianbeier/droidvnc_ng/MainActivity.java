@@ -311,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        ListenIfAdapter lsif = new ListenIfAdapter(MainService.getAvailableNICs(), this);
+        ListenIfAdapter lsif = new ListenIfAdapter(Utils.getAvailableNICs(), this);
         final Spinner listenInterfaceSpin = findViewById(R.id.settings_listening_interface);
         listenInterfaceSpin.setAdapter(lsif);
         listenInterfaceSpin.setOnItemSelectedListener(new OnItemSelectedListener() {

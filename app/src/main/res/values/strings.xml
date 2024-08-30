@@ -5,13 +5,6 @@
     <string name="main_activity_settings">Settings</string>
     <string name="main_activity_settings_listening_interface">Listening Interface</string>
     <string name="main_activity_settings_listenif_spin_any">Any</string>
-    <string name="main_activity_settings_listenif_spin_wifi">Wi-Fi</string>
-    <string name="main_activity_settings_listenif_spin_eth">Ethernet</string>
-    <string name="main_activity_settings_listenif_spin_lpback">Loopback</string>
-    <string name="main_activity_settings_listenif_spin_tun">Tunnel</string>
-    <string name="main_activity_settings_listenif_spin_dum">Dummy</string>
-    <string name="main_activity_settings_listenif_spin_rmndata">Cellular data</string>
-    <string name="main_activity_settings_listenif_spin_rmnipa">Qualcomm IP Acceleration</string>
     <string name="main_activity_settings_port">Port</string>
     <string name="main_activity_settings_port_not_listening">Inbound connections disabled</string>
     <string name="main_activity_settings_password">Password</string>

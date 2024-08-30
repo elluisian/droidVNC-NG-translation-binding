@@ -4,13 +4,6 @@
     <string name="main_activity_settings_port">Porta</string>
     <string name="main_activity_settings_listening_interface">Interfaccia in ascolto</string>
     <string name="main_activity_settings_listenif_spin_any">Tutte</string>
-    <string name="main_activity_settings_listenif_spin_wifi">Wi-Fi</string>
-    <string name="main_activity_settings_listenif_spin_eth">Ethernet</string>
-    <string name="main_activity_settings_listenif_spin_lpback">Loopback</string>
-    <string name="main_activity_settings_listenif_spin_tun">Tunnel</string>
-    <string name="main_activity_settings_listenif_spin_dum">Dummy</string>
-    <string name="main_activity_settings_listenif_spin_rmndata">Dati mobili</string>
-    <string name="main_activity_settings_listenif_spin_rmnipa">Accelerazione IP Qualcomm</string>
     <string name="main_activity_settings_port_not_listening">Connessioni in entrata disabilitate</string>
     <string name="main_activity_settings_password">Password</string>
     <string name="main_activity_settings_access_key">Chiave d\'accesso</string>

@@ -770,60 +770,6 @@ public class MainService extends Service {
     }
 
 
-
-    /**
-     * Get all the available network interfaces, in the up status, which have at least one IPv4 address
-     * @return An ArrayList&lt;NetworkInterfaces&gt; containing the above-mentioned interfaces
-     */
-    static ArrayList<NetworkInterface> getAvailableNICs() {
-        ArrayList<NetworkInterface> nics = new ArrayList<>();
-
-        try {
-            // Thanks go to https://stackoverflow.com/a/20103869/361413
-            Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
-            NetworkInterface ni;
-            while (nis.hasMoreElements()) {
-                ni = nis.nextElement();
-                if (ni.isUp()) {
-                    // Check if there are actual ipv4 addresses, if so, add the NetworkInterface
-                    // Should we consider IPv6 also? Technically yes, but the program, at the moment, does not support them.
-                    for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-                        if (ia.getAddress().getAddress().length == 4) {
-                            nics.add(ni);
-                            break;
-                        }
-                    }
-                }
-            }
-        } catch (SocketException e) {
-            //unused
-        }
-
-        return nics;
-    }
-
-
-
-    /**
-     * Gets all the ipv4s available for a single NetworkInterface
-     * @param ni the NetworkInterface to check
-     * @return an ArrayList&lt;String&gt; which contains all the collected ipv4
-     */
-    static ArrayList<String> getIPv4ForInterface(NetworkInterface ni) {
-        ArrayList<String> ipv4s = new ArrayList<>();
-
-        for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-            //filter for ipv4/ipv6
-            if (ia.getAddress().getAddress().length == 4) {
-                //4 for ipv4, 16 for ipv6
-                ipv4s.add(ia.getAddress().toString().replaceAll("/", ""));
-            }
-        }
-
-        return ipv4s;
-    }
-
-
     /**
      * This returns A SINGLE ipv4 address for the selected interface... giving the possibility
      * to the server to listen to that address only.
@@ -832,14 +778,9 @@ public class MainService extends Service {
      */
     static String getInterfaceListeningIPv4Address(String ifName) {
         if (!ifName.equals("0.0.0.0")) {
-            try {
-                ArrayList<String> ipv4s = MainService.getIPv4ForInterface(NetworkInterface.getByName(ifName));
-                if (ipv4s.size() > 0) {
-                    return ipv4s.get(0);
-                }
-
-            } catch (SocketException ex) {
-                // unused
+            ArrayList<String> ipv4s = Utils.getIPv4ForInterface(ifName);
+            if (ipv4s.size() > 0) {
+                return ipv4s.get(0);
             }
         }
 
@@ -868,10 +809,10 @@ public class MainService extends Service {
         try {
             if (listenInterface.equals("0.0.0.0")) {
                 // Any mode: get all the available NICs and add their IPv4
-                ArrayList<NetworkInterface> nics = MainService.getAvailableNICs();
+                ArrayList<NetworkInterface> nics = Utils.getAvailableNICs();
                 for (NetworkInterface nic : nics) {
                     if (!nic.isLoopback()) {
-                        ArrayList<String> ipv4s = MainService.getIPv4ForInterface(nic);
+                        ArrayList<String> ipv4s = Utils.getIPv4ForInterface(nic);
                         for (String ipv4 : ipv4s) {
                             hosts.add(ipv4);
                         }
@@ -879,7 +820,7 @@ public class MainService extends Service {
                 }
             } else {
                 // Single interface: get all its IPv4 addresses
-                ArrayList<String> ipv4s = MainService.getIPv4ForInterface(NetworkInterface.getByName(listenInterface));
+                ArrayList<String> ipv4s = Utils.getIPv4ForInterface(NetworkInterface.getByName(listenInterface));
                 for (String ipv4 : ipv4s) {
                     hosts.add(ipv4);
                 }
