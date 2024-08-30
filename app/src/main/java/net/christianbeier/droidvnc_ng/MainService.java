@@ -770,6 +770,7 @@ public class MainService extends Service {
     }
 
 
+
     /**
      * This returns A SINGLE ipv4 address for the selected interface... giving the possibility
      * to the server to listen to that address only.
@@ -820,7 +821,7 @@ public class MainService extends Service {
                 }
             } else {
                 // Single interface: get all its IPv4 addresses
-                ArrayList<String> ipv4s = Utils.getIPv4ForInterface(NetworkInterface.getByName(listenInterface));
+                ArrayList<String> ipv4s = Utils.getIPv4ForInterface(listenInterface);
                 for (String ipv4 : ipv4s) {
                     hosts.add(ipv4);
                 }

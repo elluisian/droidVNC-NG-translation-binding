@@ -311,13 +311,14 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        ListenIfAdapter lsif = new ListenIfAdapter(Utils.getAvailableNICs(), this);
+        NetworkInterfaceTester nit = new NetworkInterfaceTester(this);
+        ListenIfAdapter lsif = new ListenIfAdapter(nit, this);
         final Spinner listenInterfaceSpin = findViewById(R.id.settings_listening_interface);
         listenInterfaceSpin.setAdapter(lsif);
         listenInterfaceSpin.setOnItemSelectedListener(new OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                ListenIfAdapter.NetworkInterfaceData d = (ListenIfAdapter.NetworkInterfaceData)parent.getItemAtPosition(pos);
+                NetworkInterfaceTester.NetIfData d = (NetworkInterfaceTester.NetIfData)parent.getItemAtPosition(pos);
                 if(!(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, null) == null && d.getName().equals(mDefaults.getListenInterface()))) {
                     SharedPreferences.Editor ed = prefs.edit();
                     ed.putString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, d.getName());
@@ -334,6 +335,7 @@ public class MainActivity extends AppCompatActivity {
         listenInterfaceSpin.setSelection(
             lsif.getItemPositionByIfName(
                prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface())));
+
 
 
 
