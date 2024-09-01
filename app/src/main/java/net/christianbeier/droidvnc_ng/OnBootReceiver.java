@@ -24,6 +24,8 @@ package net.christianbeier.droidvnc_ng;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -32,12 +34,26 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.preference.PreferenceManager;
 
 
-public class OnBootReceiver extends BroadcastReceiver {
+import java.util.ArrayList;
 
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.InetSocketAddress;
+
+import java.io.IOException;
+
+
+
+public class OnBootReceiver extends BroadcastReceiver {
     private static final String TAG = "OnBootReceiver";
+    public static String NOTIFICATION_ID = "notification-id";
+    public static String NOTIFICATION = "notification" ;
+
 
     public void onReceive(Context context, Intent arg1) {
         if (Intent.ACTION_BOOT_COMPLETED.equals(arg1.getAction())) {
@@ -52,8 +68,18 @@ public class OnBootReceiver extends BroadcastReceiver {
                     return;
                 }
 
+                // Check for availability of listenIf
+                String listenIf = prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, defaults.getListenInterface());
+                NetworkInterfaceTester nit = NetworkInterfaceTester.getInstance(context);
+                if (!nit.isIfEnabled(listenIf)) {
+                    Log.w(TAG, "onReceive: interface \"" + listenIf + "\" not available, sending a notification");
+                    this.sendNotification(context, listenIf);
+                    return;
+                }
+
                 Intent intent = new Intent(context.getApplicationContext(), MainService.class);
                 intent.setAction(MainService.ACTION_START);
+                intent.putExtra(MainService.EXTRA_LISTEN_INTERFACE, listenIf);
                 intent.putExtra(MainService.EXTRA_PORT, prefs.getInt(Constants.PREFS_KEY_SETTINGS_PORT, defaults.getPort()));
                 intent.putExtra(MainService.EXTRA_PASSWORD, prefs.getString(Constants.PREFS_KEY_SETTINGS_PASSWORD, defaults.getPassword()));
                 intent.putExtra(MainService.EXTRA_FILE_TRANSFER, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_FILE_TRANSFER, defaults.getFileTransfer()));
@@ -80,33 +106,6 @@ public class OnBootReceiver extends BroadcastReceiver {
                     } else {
                         context.getApplicationContext().startService(intent);
                     }
-            // autostart needs InputService on Android 10 and newer, both for the activity starts from MainService
-            // (could be reworked) but most importantly for fallback screen capture
-            if(Build.VERSION.SDK_INT >= 30 && !InputService.isConnected()) {
-                Log.w(TAG, "onReceive: configured to start, but on Android 10+ and InputService not set up, bailing out");
-                return;
-            }
-
-            Intent intent = new Intent(context, MainService.class);
-            intent.setAction(MainService.ACTION_START);
-            intent.putExtra(MainService.EXTRA_LISTEN_INTERFACE, prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, defaults.getListenInterface()));
-            intent.putExtra(MainService.EXTRA_PORT, prefs.getInt(Constants.PREFS_KEY_SETTINGS_PORT, defaults.getPort()));
-            intent.putExtra(MainService.EXTRA_PASSWORD, prefs.getString(Constants.PREFS_KEY_SETTINGS_PASSWORD, defaults.getPassword()));
-            intent.putExtra(MainService.EXTRA_FILE_TRANSFER, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_FILE_TRANSFER, defaults.getFileTransfer()));
-            intent.putExtra(MainService.EXTRA_VIEW_ONLY, prefs.getBoolean(Constants.PREFS_KEY_SETTINGS_VIEW_ONLY, defaults.getViewOnly()));
-            intent.putExtra(MainService.EXTRA_SCALING, prefs.getFloat(Constants.PREFS_KEY_SETTINGS_SCALING, defaults.getScaling()));
-            intent.putExtra(MainService.EXTRA_ACCESS_KEY, prefs.getString(Constants.PREFS_KEY_SETTINGS_ACCESS_KEY, defaults.getAccessKey()));
-            intent.putExtra(MainService.EXTRA_FALLBACK_SCREEN_CAPTURE, true); // want this on autostart
-
-            long delayMillis =  1000L * prefs.getInt(Constants.PREFS_KEY_SETTINGS_START_ON_BOOT_DELAY, defaults.getStartOnBootDelay());
-            if(delayMillis > 0) {
-                Log.i(TAG, "onReceive: configured to start delayed by " + delayMillis/1000 + "s");
-                AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-                PendingIntent pendingIntent;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    pendingIntent = PendingIntent.getForegroundService(context.getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE);
-                } else {
-                    pendingIntent = PendingIntent.getService(context.getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE);
                 }
             } else {
                 Log.i(TAG, "onReceive: configured NOT to start");
@@ -114,4 +113,27 @@ public class OnBootReceiver extends BroadcastReceiver {
         }
     }
 
+
+    private void sendNotification(Context context, String listenIf) {
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                context.getPackageName(),
+                "ListenIf NA Channel",
+                NotificationManager.IMPORTANCE_DEFAULT
+            );
+            manager.createNotificationChannel(serviceChannel);
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, context.getPackageName())
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getResources().getString(R.string.app_name))
+            .setContentText(
+                 String.format("Failed to connect to interface \"%s\", is it down perhaps?", listenIf))
+            .setSilent(false)
+            .setOngoing(true);
+
+        manager.notify(9, builder.build());
+    }
 }
