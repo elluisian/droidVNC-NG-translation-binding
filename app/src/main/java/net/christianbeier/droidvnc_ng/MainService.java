@@ -63,7 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MainService extends Service {
+public class MainService extends Service implements NetworkInterfaceTester.OnNetworkStateChangedListener {
 
     private static final String TAG = "MainService";
     static final int NOTIFICATION_ID = 11;
@@ -225,6 +225,7 @@ public class MainService extends Service {
         Log.d(TAG, "onCreate");
 
         instance = this;
+        NetworkInterfaceTester.getInstance(this).addOnNetworkStateChangedListener(this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             /*
@@ -928,6 +929,17 @@ public class MainService extends Service {
             return instance.mNotification;
         } catch (Exception ignored) {
             return null;
+        }
+    }
+
+
+
+
+    public void onNetworkStateChanged(NetworkInterfaceTester nit) {
+        if (isServerActive()) {
+            if (!nit.isIfEnabled(getListenInterface())) {
+                this.stopSelf();
+            }
         }
     }
 }

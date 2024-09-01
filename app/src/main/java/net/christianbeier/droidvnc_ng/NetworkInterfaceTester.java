@@ -41,8 +41,21 @@ import java.util.ArrayList;
 public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback {
     public static final String TAG = "NetworkInterfaceTester";
 
+    private static NetworkInterfaceTester INSTANCE;
+
+
+
+    public synchronized static NetworkInterfaceTester getInstance(Context context) {
+        if (NetworkInterfaceTester.INSTANCE == null) {
+            NetworkInterfaceTester.INSTANCE = new NetworkInterfaceTester(context);
+        }
+        return NetworkInterfaceTester.INSTANCE;
+    }
+
+
+
     public static interface OnNetworkStateChangedListener {
-        public void onNetworkStateChanged(NetworkInterfaceTester nit, NetworkInterface iface, boolean enabled);
+        public void onNetworkStateChanged(NetworkInterfaceTester nit);
     }
 
 
@@ -52,16 +65,16 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
         private String displayName;
         private String friendlyName;
 
-        private NetIfData(Context context) {
-            this(null, context);
+        private NetIfData() {
+            this(null);
         }
 
-        private NetIfData(NetworkInterface nic, Context context) {
+        private NetIfData(NetworkInterface nic) {
             this.nic = nic;
 
             if (nic == null) {
                 this.name = "0.0.0.0";
-                this.displayName = context.getResources().getString(R.string.main_activity_settings_listenif_spin_any);
+                this.displayName = "Any";
 
             } else {
                 this.name = this.nic.getName();
@@ -70,15 +83,15 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
             }
         }
 
-        public static NetIfData getAnyOption(Context context) {
+        public static NetIfData getAnyOption() {
             if (NetworkInterfaceTester.IF_ANY == null) {
-                NetworkInterfaceTester.IF_ANY = new NetIfData(context);
+                NetworkInterfaceTester.IF_ANY = new NetIfData();
             }
             return NetworkInterfaceTester.IF_ANY;
         }
 
-        public static NetIfData getOptionForNic(NetworkInterface nic, Context context) {
-            return new NetIfData(nic, context);
+        public static NetIfData getOptionForNic(NetworkInterface nic) {
+            return new NetIfData(nic);
         }
 
 
@@ -113,10 +126,9 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
 
 
-    public NetworkInterfaceTester(Context context) {
-        this.context = context;
-
+    private NetworkInterfaceTester(Context context) {
         this.netIf = Utils.getAvailableNICs();
+
         this.netIfSize = this.netIf.size();
 
         this.netIfEnabled = new ArrayList<>();
@@ -146,14 +158,13 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
 
 
-
     public ArrayList<NetIfData> getAvailableInterfaces() {
         ArrayList<NetIfData> ls = new ArrayList<>();
 
-        ls.add(NetIfData.getAnyOption(this.context));
+        ls.add(NetIfData.getAnyOption());
         for (int i = 0; i < this.netIfSize; i++) {
             if (this.netIfEnabled.get(i)) {
-                NetIfData nid = NetIfData.getOptionForNic(this.netIf.get(i), this.context);
+                NetIfData nid = NetIfData.getOptionForNic(this.netIf.get(i));
                 ls.add(nid);
             }
         }
@@ -163,50 +174,14 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
 
 
-
-    @Override
-    public void onAvailable(Network network) {
-        super.onAvailable(network);
-        int i = this.storeNetworkHashCode(network);
-        this.setEnabled(i, true);
-        this.updateListener(i, true);
-    }
-
-
-    @Override
-    public void onLost(Network network) {
-        super.onLost(network);
-        int i = this.getFromNetworkHashCode(network);
-        this.setEnabled(i, false);
-        this.updateListener(i, false);
-    }
-
-
-
-    private int storeNetworkHashCode(Network network) {
-        LinkProperties prop = this.manager.getLinkProperties(network);
-
-        NetworkInterface iface = null;
-        try {
-            iface = NetworkInterface.getByName(prop.getInterfaceName());
-        } catch (SocketException ex) {
-            // unused
-        }
-
+    private int searchForNICByName(String ifname) {
         int i = 0;
         boolean found = false;
         for (i = 0; !found && i < this.netIfSize; i++) {
-            if (iface.getName().equals(this.netIf.get(i).getName())) {
-                this.networks.set(i, network);
+            if (ifname.equals(this.netIf.get(i).getName())) {
                 i--;
                 found = true;
             }
-        }
-
-        if (found) {
-            Log.d(TAG, "Added network " + iface.getName());
-        } else {
-            Log.d(TAG, "No network found");
         }
 
         return found ? i : -1;
@@ -214,7 +189,84 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
 
 
-    private int getFromNetworkHashCode(Network network) {
+
+    @Override
+    public void onAvailable(Network network) {
+        super.onAvailable(network);
+        int i = this.storeNetwork(network);
+        if (i != -1) {
+            this.setEnabled(i, true);
+            this.updateListener(i, true);
+        }
+    }
+
+
+    @Override
+    public void onLost(Network network) {
+        super.onLost(network);
+        int i = this.getFromNetwork(network);
+        if (i != -1) {
+            this.setEnabled(i, false);
+            this.updateListener(i, false);
+        }
+    }
+
+
+    @Override
+    public void onLosing(Network network, int maxMsToLive) {
+        Log.d(TAG, "onLosing " + network);
+    }
+
+
+
+    @Override
+    public void onBlockedStatusChanged(Network network, boolean blocked) {
+        Log.d(TAG, "onBlockedStatusChagned " + network);
+    }
+
+
+    @Override
+    public void onLinkPropertiesChanged(Network network, LinkProperties linkProperties) {
+        Log.d(TAG, "onLinkPropertiesChanged " + network);
+    }
+
+
+    /*
+     * The idea is simple: during onLost, LinkProperties attributes are lost
+     * inside Network, so, memorize a reference to the Network instance, this way,
+     * we'll be able to understand what exact interface was lost.
+     */
+    private int storeNetwork(Network network) {
+        LinkProperties prop = this.manager.getLinkProperties(network);
+
+        NetworkInterface iface = null;
+        try {
+            iface = NetworkInterface.getByName(prop.getInterfaceName());
+
+        } catch (SocketException ex) {
+            Log.d(TAG, "Socket exception has occurred, return -1");
+            return -1;
+
+        }
+
+        // No socket exception occurred, let's see if the interface is available
+        int i = this.searchForNICByName(iface.getName());
+        if (i == -1) { // if not found, it means that it has been created recently, add to list
+            this.netIf.add(iface);
+            this.networks.add(network);
+            i = this.netIfSize++;
+        } else {
+            // Otherwise, the interface exists, replace network
+            this.networks.set(i, network);
+        }
+
+        Log.d(TAG, "Added network " + iface.getName());
+
+        return i;
+    }
+
+
+    private int getFromNetwork(Network network) {
         int i = this.networks.indexOf(network);
 
         if (i != -1) {
@@ -233,6 +285,17 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
     }
 
 
+    public boolean isEnabled(int i) {
+        return this.netIfEnabled.get(i);
+    }
+
+
+    public boolean isIfEnabled(String ifname) {
+        int pos = this.searchForNICByName(ifname);
+        return pos == -1 ? false : this.netIfEnabled.get(pos);
+    }
+
+
 
 
     public void addOnNetworkStateChangedListener(OnNetworkStateChangedListener onscl) {
@@ -244,7 +307,7 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
     private void updateListener(int i, boolean enabled) {
         for (OnNetworkStateChangedListener onscl : this.listeners) {
-            onscl.onNetworkStateChanged(this, this.netIf.get(i), enabled);
+            onscl.onNetworkStateChanged(this);
         }
     }
 }

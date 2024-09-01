@@ -26,6 +26,9 @@ import java.util.ArrayList;
 
 import android.content.res.Resources;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,6 +46,7 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
     }
 
     // Data to be shown with the adapter
+    private ArrayList<String> dataStr;
     private ArrayList<NetworkInterfaceTester.NetIfData> data;
     private int dataSize;
 
@@ -52,6 +56,9 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
     private LayoutInflater mInflater;
 
 
+    // UI related
+    private Handler handler;
+
 
 
     public ListenIfAdapter(NetworkInterfaceTester nit, Context context) {
@@ -60,8 +67,10 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
         this.mContext = context;
         this.mInflater = LayoutInflater.from(this.mContext);
 
+        this.handler = new Handler(Looper.getMainLooper());
+
         nit.addOnNetworkStateChangedListener(this);
-        this.onNetworkStateChanged(nit, null, false);
+        this.onNetworkStateChanged(nit);
     }
 
 
@@ -80,9 +89,19 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
 
 
+    @Override
+    public View getDropDownView(int position, View convertView, ViewGroup parent) {
+        return this.handleViewRecreation(position, convertView, parent);
+    }
+
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
+        return this.handleViewRecreation(position, convertView, parent);
+    }
+
+
+    private View handleViewRecreation(int position, View convertView, ViewGroup parent) {
         if (convertView == null) { // Check if view must be recreated using the famous ViewHolder pattern
             convertView = this.mInflater.inflate(R.layout.spinner_row, parent, false);
 
@@ -92,11 +111,12 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
         }
 
         ViewHolder vh = (ViewHolder)convertView.getTag();
-        NetworkInterfaceTester.NetIfData nid = this.getItem(position);
-        vh.txtLabel.setText(nid.toString());
+        String label = this.dataStr.get(position);
+        vh.txtLabel.setText(label);
 
         return convertView;
     }
+
 
 
     @Override
@@ -108,6 +128,7 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
     }
 
 
+
     @Override
     public int getCount() {
         return this.dataSize;
@@ -115,8 +136,27 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
 
 
-    public void onNetworkStateChanged(NetworkInterfaceTester nit, NetworkInterface iface, boolean enabled) {
+    public void onNetworkStateChanged(NetworkInterfaceTester nit) {
         this.data = nit.getAvailableInterfaces();
         this.dataSize = this.data.size();
+
+        this.dataStr = new ArrayList<>();
+        for (NetworkInterfaceTester.NetIfData nid : this.data) {
+            String actualName = " (" + nid.getName() + ")";
+            String displayName = nid.getDisplayName();
+
+            if (nid.getName().equals("0.0.0.0")) {
+                displayName = this.mContext.getResources().getString(R.string.main_activity_settings_listenif_spin_any);
+            }
+
+            this.dataStr.add(displayName + actualName);
+        }
+
+        // update Spinner
+        this.handler.post(new Runnable() {
+            public void run() {
+                ListenIfAdapter.this.notifyDataSetChanged();
+            }
+        });
     }
 }

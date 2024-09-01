@@ -311,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        NetworkInterfaceTester nit = new NetworkInterfaceTester(this);
+        NetworkInterfaceTester nit = NetworkInterfaceTester.getInstance(this);
         ListenIfAdapter lsif = new ListenIfAdapter(nit, this);
         final Spinner listenInterfaceSpin = findViewById(R.id.settings_listening_interface);
         listenInterfaceSpin.setAdapter(lsif);

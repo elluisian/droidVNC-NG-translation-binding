@@ -133,7 +133,7 @@ object Utils {
 
     @JvmStatic
     fun getAvailableNICs(): ArrayList<NetworkInterface> {
-        return getAvailableNICs(true, true);
+        return getAvailableNICs(false, true);
     }
 
 
