@@ -41,7 +41,7 @@ class Defaults {
     }
 
     @EncodeDefault
-    var listenInterface = "0.0.0.0"
+    var listenInterface = "loopback"
         private set
 
     @EncodeDefault
