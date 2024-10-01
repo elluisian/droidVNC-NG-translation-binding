@@ -343,7 +343,7 @@ public class MainService extends Service implements NetworkInterfaceTester.OnNet
                 DisplayMetrics displayMetrics = Utils.getDisplayMetrics(this, Display.DEFAULT_DISPLAY);
 
                 String listenIf = PreferenceManager.getDefaultSharedPreferences(this).getString(PREFS_KEY_SERVER_LAST_LISTEN_INTERFACE, mDefaults.getListenInterface());
-                String  listenAddress = MainService.getInterfaceListeningIPv4Address(listenIf);
+                String listenAddress = MainService.getInterfaceListeningIPv4Address(listenIf);
                 int port = PreferenceManager.getDefaultSharedPreferences(this).getInt(PREFS_KEY_SERVER_LAST_PORT, mDefaults.getPort());
                 // get device name
                 String name = Utils.getDeviceName(this);
@@ -773,14 +773,23 @@ public class MainService extends Service implements NetworkInterfaceTester.OnNet
 
 
     /**
-     * This returns A SINGLE ipv4 address for the selected interface... giving the possibility
+     * This returns A SINGLE ipv4 address for the selected option id (representing an interface)... giving the possibility
      * to the server to listen to that address only.
-     * @param ifName name (techName, not friendly one) that defines the interface to be used
-     * @return if the interface 0.0.0.0 or there's some error null, otherwise, the needed ipv4
+     * @param ifName name that defines the interface to be used (may be an actual interface name or an option id, like "any" and "loopback")
+     * @return null if the interface is 0.0.0.0 (any), otherwise, the needed ipv4
      */
     static String getInterfaceListeningIPv4Address(String ifName) {
-        if (!ifName.equals("0.0.0.0")) {
-            ArrayList<String> ipv4s = Utils.getIPv4ForInterface(ifName);
+        if (!NetIfData.isOptionIdAny(ifName)) {
+            ArrayList<String> ipv4s = null;
+
+            if (NetIfData.isOptionIdLoopback(ifName)) {
+                ipv4s = Utils.getIPv4ForInterface(IfCollector.getInstance().getLoopback().getNetworkInterface());
+
+            } else {
+                ipv4s = Utils.getIPv4ForInterface(ifName);
+
+            }
+
             if (ipv4s.size() > 0) {
                 return ipv4s.get(0);
             }
@@ -807,28 +816,31 @@ public class MainService extends Service implements NetworkInterfaceTester.OnNet
 
         // not running on Chrome OS
         String listenInterface = MainService.getListenInterface();
+        IfCollector ifColl = IfCollector.getInstance();
+        ArrayList<String> ipv4s = null;
 
-        try {
-            if (listenInterface.equals("0.0.0.0")) {
-                // Any mode: get all the available NICs and add their IPv4
-                ArrayList<NetworkInterface> nics = Utils.getAvailableNICs();
-                for (NetworkInterface nic : nics) {
-                    if (!nic.isLoopback()) {
-                        ArrayList<String> ipv4s = Utils.getIPv4ForInterface(nic);
-                        for (String ipv4 : ipv4s) {
-                            hosts.add(ipv4);
-                        }
-                    }
-                }
-            } else {
-                // Single interface: get all its IPv4 addresses
-                ArrayList<String> ipv4s = Utils.getIPv4ForInterface(listenInterface);
+        if (NetIfData.isOptionIdAny(listenInterface)) {
+            // Any mode: get all the available NICs and add their IPv4
+            for (int i = 0; i < ifColl.getSize(); i++) {
+                NetIfData nid = ifColl.getNetIf(i);
+                ipv4s = Utils.getIPv4ForInterface(nid.getNetworkInterface());
                 for (String ipv4 : ipv4s) {
                     hosts.add(ipv4);
                 }
             }
-        } catch (SocketException ex) {
-            // unused
+
+        } else {
+            // Single interface: get all its IPv4 addresses
+            if (NetIfData.isOptionIdLoopback(listenInterface)) {
+                ipv4s = Utils.getIPv4ForInterface(ifColl.getLoopback().getNetworkInterface());
+
+            } else {
+                ipv4s = Utils.getIPv4ForInterface(listenInterface);
+            }
+
+            for (String ipv4 : ipv4s) {
+                hosts.add(ipv4);
+            }
         }
 
         return hosts;

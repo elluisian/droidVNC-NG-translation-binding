@@ -1,10 +1,9 @@
 /*
- * DroidVNC-NG broadcast receiver that listens for boot-completed events
- * and starts MainService in turn.
+ * DroidVNC-NG Network interface tester, used to detect whether network connections are lost or added.
  *
  * Author: elluisian <elluisian@yandex.com>
  *
- * Copyright (C) 2020, 2023 Christian Beier (info@christianbeier.net>).
+ * Copyright (C) 2024 Christian Beier (info@christianbeier.net>).
  *
  * You can redistribute and/or modify this program under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -30,7 +29,6 @@ import android.net.NetworkCapabilities;
 import android.content.Context;
 import android.util.Log;
 
-
 import java.net.SocketException;
 import java.net.NetworkInterface;
 import java.util.List;
@@ -40,7 +38,6 @@ import java.util.ArrayList;
 
 public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback {
     public static final String TAG = "NetworkInterfaceTester";
-
     private static NetworkInterfaceTester INSTANCE;
 
 
@@ -59,132 +56,41 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
     }
 
 
-    public static class NetIfData {
-        private NetworkInterface nic;
-        private String name;
-        private String displayName;
-        private String friendlyName;
 
-        private NetIfData() {
-            this(null);
-        }
-
-        private NetIfData(NetworkInterface nic) {
-            this.nic = nic;
-
-            if (nic == null) {
-                this.name = "0.0.0.0";
-                this.displayName = "Any";
-
-            } else {
-                this.name = this.nic.getName();
-                this.displayName = this.nic.getDisplayName();
-
-            }
-        }
-
-        public static NetIfData getAnyOption() {
-            if (NetworkInterfaceTester.IF_ANY == null) {
-                NetworkInterfaceTester.IF_ANY = new NetIfData();
-            }
-            return NetworkInterfaceTester.IF_ANY;
-        }
-
-        public static NetIfData getOptionForNic(NetworkInterface nic) {
-            return new NetIfData(nic);
-        }
-
-
-
-        public String getName() {
-            return this.name;
-        }
-
-        public String getDisplayName() {
-            return this.displayName;
-        }
-
-        public String toString() {
-            return this.getName();
-        }
-    }
-
-
-
-    private static NetIfData IF_ANY;
-
-
-    private ArrayList<NetworkInterface> netIf;
-    private ArrayList<Network> networks;
-    private ArrayList<Boolean> netIfEnabled;
-    private int netIfSize;
-
+    private IfCollector ifCollector;
     private Context context;
     private ConnectivityManager manager;
-
     private List<OnNetworkStateChangedListener> listeners;
 
 
 
     private NetworkInterfaceTester(Context context) {
-        this.netIf = Utils.getAvailableNICs();
-
-        this.netIfSize = this.netIf.size();
-
-        this.netIfEnabled = new ArrayList<>();
-        this.networks = new ArrayList<>();
-        for (int i = 0; i < this.netIfSize; i++) {
-            try {
-                this.netIfEnabled.add(this.netIf.get(i).isUp());
-            } catch (SocketException ex) {
-                // unused
-            }
-            this.networks.add(null);
-        }
-
+        this.ifCollector = IfCollector.getInstance();
 
         this.listeners = new ArrayList<>();
-
         this.manager = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
         this.manager.registerNetworkCallback(
             new NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                 .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
-                .addTransportType(NetworkCapabilities.TRANSPORT_VPN).build(),
+                .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) // This is needed, otherwise, VPN start/stop is not detected
+                .build(),
             this
         );
     }
 
 
 
-    public ArrayList<NetIfData> getAvailableInterfaces() {
+    public ArrayList<NetIfData> getAvailableNetIfs() {
         ArrayList<NetIfData> ls = new ArrayList<>();
 
-        ls.add(NetIfData.getAnyOption());
-        for (int i = 0; i < this.netIfSize; i++) {
-            if (this.netIfEnabled.get(i)) {
-                NetIfData nid = NetIfData.getOptionForNic(this.netIf.get(i));
-                ls.add(nid);
-            }
-        }
+        ls.add(this.ifCollector.getAny());
+        ls.add(this.ifCollector.getLoopback());
+        ls.addAll(this.ifCollector.getEnabledNetIfs());
 
         return ls;
-    }
-
-
-
-    private int searchForNICByName(String ifname) {
-        int i = 0;
-        boolean found = false;
-        for (i = 0; !found && i < this.netIfSize; i++) {
-            if (ifname.equals(this.netIf.get(i).getName())) {
-                i--;
-                found = true;
-            }
-        }
-
-        return found ? i : -1;
     }
 
 
@@ -194,9 +100,11 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
     public void onAvailable(Network network) {
         super.onAvailable(network);
         int i = this.storeNetwork(network);
+
         if (i != -1) {
-            this.setEnabled(i, true);
-            this.updateListener(i, true);
+            NetIfData nid = this.ifCollector.getNetIf(i);
+            nid.setEnabled(true);
+            this.updateListener();
         }
     }
 
@@ -205,11 +113,15 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
     public void onLost(Network network) {
         super.onLost(network);
         int i = this.getFromNetwork(network);
+
         if (i != -1) {
-            this.setEnabled(i, false);
-            this.updateListener(i, false);
+            NetIfData nid = this.ifCollector.getNetIf(i);
+            nid.setEnabled(false);
+            this.updateListener();
         }
     }
+
+
 
 
     @Override
@@ -217,18 +129,17 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
         Log.d(TAG, "onLosing " + network);
     }
 
-
-
     @Override
     public void onBlockedStatusChanged(Network network, boolean blocked) {
         Log.d(TAG, "onBlockedStatusChagned " + network);
     }
 
-
     @Override
     public void onLinkPropertiesChanged(Network network, LinkProperties linkProperties) {
         Log.d(TAG, "onLinkPropertiesChanged " + network);
     }
+
+
 
 
     /*
@@ -238,7 +149,6 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
      */
     private int storeNetwork(Network network) {
         LinkProperties prop = this.manager.getLinkProperties(network);
-
         NetworkInterface iface = null;
         try {
             iface = NetworkInterface.getByName(prop.getInterfaceName());
@@ -246,18 +156,17 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
         } catch (SocketException ex) {
             Log.d(TAG, "Socket exception has occurred, return -1");
             return -1;
-
         }
 
         // No socket exception occurred, let's see if the interface is available
-        int i = this.searchForNICByName(iface.getName());
+        int i = this.ifCollector.searchForNetIfByOptionId(iface.getName());
         if (i == -1) { // if not found, it means that it has been created recently, add to list
-            this.netIf.add(iface);
-            this.networks.add(network);
-            i = this.netIfSize++;
+            this.ifCollector.addNetIf(iface, network);
+
         } else {
             // Otherwise, the interface exists, replace network
-            this.networks.set(i, network);
+            NetIfData nid = this.ifCollector.getNetIf(i);
+            nid.setNetwork(network);
         }
 
         Log.d(TAG, "Added network " + iface.getName());
@@ -267,32 +176,15 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
 
 
     private int getFromNetwork(Network network) {
-        int i = this.networks.indexOf(network);
+        int i = this.ifCollector.searchForNetIfByNetwork(network);
 
         if (i != -1) {
-            Log.d(TAG, "Removed network " + this.netIf.get(i).getName());
+            Log.d(TAG, "Removed network " + this.ifCollector.getNetIf(i).getOptionId());
         } else {
             Log.d(TAG, "Network to remove not found");
         }
 
         return i;
-    }
-
-
-
-    private void setEnabled(int i, boolean enabled) {
-        this.netIfEnabled.set(i, enabled);
-    }
-
-
-    public boolean isEnabled(int i) {
-        return this.netIfEnabled.get(i);
-    }
-
-
-    public boolean isIfEnabled(String ifname) {
-        int pos = this.searchForNICByName(ifname);
-        return pos == -1 ? false : this.netIfEnabled.get(pos);
     }
 
 
@@ -305,9 +197,31 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
     }
 
 
-    private void updateListener(int i, boolean enabled) {
+    private void updateListener() {
         for (OnNetworkStateChangedListener onscl : this.listeners) {
             onscl.onNetworkStateChanged(this);
         }
+    }
+
+
+    public boolean isIfEnabled(String listenIf) {
+        if (NetIfData.isOptionIdLoopback(listenIf) ||
+            NetIfData.isOptionIdAny(listenIf)) {
+            return true;
+        }
+
+        NetIfData loopback = this.ifCollector.getLoopback();
+        if (loopback.getName().equals(listenIf)) {
+            return true;
+        }
+
+
+        int i = this.ifCollector.searchForNetIfByOptionId(listenIf);
+        if (i != -1) {
+            NetIfData nid = this.ifCollector.getNetIf(i);
+            return nid.isEnabled();
+        }
+
+        return false;
     }
 }

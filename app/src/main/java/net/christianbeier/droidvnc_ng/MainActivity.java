@@ -318,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
         listenInterfaceSpin.setOnItemSelectedListener(new OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                NetworkInterfaceTester.NetIfData d = (NetworkInterfaceTester.NetIfData)parent.getItemAtPosition(pos);
+                NetIfData d = (NetIfData)parent.getItemAtPosition(pos);
                 if(!(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, null) == null && d.getName().equals(mDefaults.getListenInterface()))) {
                     SharedPreferences.Editor ed = prefs.edit();
                     ed.putString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, d.getName());
@@ -333,7 +333,7 @@ public class MainActivity extends AppCompatActivity {
         });
         // Restore last selected interface
         listenInterfaceSpin.setSelection(
-            lsif.getItemPositionByIfName(
+            lsif.getItemPositionByOptionId(
                prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface())));
 
 
