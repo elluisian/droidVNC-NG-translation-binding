@@ -82,7 +82,7 @@ public class ListenIfAdapter extends ArrayAdapter<NetIfData> implements NetworkI
             i++;
         }
 
-        return 0;
+        return 1; // return loopback position as default
     }
 
 
