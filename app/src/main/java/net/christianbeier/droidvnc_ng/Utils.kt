@@ -97,6 +97,7 @@ object Utils {
     }
 
 
+
     @JvmStatic
     fun getAvailableNICs(upIfOnly: Boolean, ipAvailOnly: Boolean): ArrayList<NetworkInterface> {
         val nics = ArrayList<NetworkInterface>();

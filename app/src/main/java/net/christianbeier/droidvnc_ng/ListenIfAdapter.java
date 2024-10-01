@@ -1,9 +1,9 @@
 /*
- * DroidVNC-NG ListenIfAdapter.
+ * DroidVNC-NG ListenIfAdapter, used to let the user choose what network interface to listen on.
  *
  * Author: elluisian <elluisian@yandex.com>
  *
- * Copyright (C) 2020 Christian Beier.
+ * Copyright (C) 2024 Christian Beier.
  *
  * You can redistribute and/or modify this program under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,7 +21,7 @@
 package net.christianbeier.droidvnc_ng;
 
 
-import java.net.NetworkInterface;
+import java.util.List;
 import java.util.ArrayList;
 
 import android.content.res.Resources;
@@ -39,15 +39,14 @@ import android.view.LayoutInflater;
 
 
 
-public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfData> implements NetworkInterfaceTester.OnNetworkStateChangedListener {
+public class ListenIfAdapter extends ArrayAdapter<NetIfData> implements NetworkInterfaceTester.OnNetworkStateChangedListener {
     // This adapter uses the ViewHolder pattern
     private static class ViewHolder {
         public TextView txtLabel;
     }
 
     // Data to be shown with the adapter
-    private ArrayList<String> dataStr;
-    private ArrayList<NetworkInterfaceTester.NetIfData> data;
+    private List<NetIfDataDecorator> data;
     private int dataSize;
 
 
@@ -66,7 +65,6 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
         this.mContext = context;
         this.mInflater = LayoutInflater.from(this.mContext);
-
         this.handler = new Handler(Looper.getMainLooper());
 
         nit.addOnNetworkStateChangedListener(this);
@@ -75,10 +73,10 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
 
 
-    public int getItemPositionByIfName(String ifName) {
+    public int getItemPositionByOptionId(String optionId) {
         int i = 0;
-        for (NetworkInterfaceTester.NetIfData nid : this.data) {
-            if (nid.getName().equals(ifName)) {
+        for (NetIfDataDecorator nid : this.data) {
+            if (nid.getOptionId().equals(optionId)) {
                 return i;
             }
             i++;
@@ -111,8 +109,7 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
         }
 
         ViewHolder vh = (ViewHolder)convertView.getTag();
-        String label = this.dataStr.get(position);
-        vh.txtLabel.setText(label);
+        vh.txtLabel.setText(this.data.get(position).getName());
 
         return convertView;
     }
@@ -120,9 +117,9 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
 
     @Override
-    public NetworkInterfaceTester.NetIfData getItem(int position) {
+    public NetIfData getItem(int position) {
         if (0 <= position && position < this.getCount()) {
-            return this.data.get(position);
+            return this.data.get(position).getWrapped();
         }
         return null;
     }
@@ -137,20 +134,14 @@ public class ListenIfAdapter extends ArrayAdapter<NetworkInterfaceTester.NetIfDa
 
 
     public void onNetworkStateChanged(NetworkInterfaceTester nit) {
-        this.data = nit.getAvailableInterfaces();
+        List<NetIfData> avNetIfs = nit.getAvailableNetIfs();
+
+        this.data = new ArrayList<>();
+        for (NetIfData nid : avNetIfs) {
+            this.data.add(new NetIfDataDefaultNameDecorator(nid, this.mContext));
+        }
         this.dataSize = this.data.size();
 
-        this.dataStr = new ArrayList<>();
-        for (NetworkInterfaceTester.NetIfData nid : this.data) {
-            String actualName = " (" + nid.getName() + ")";
-            String displayName = nid.getDisplayName();
-
-            if (nid.getName().equals("0.0.0.0")) {
-                displayName = this.mContext.getResources().getString(R.string.main_activity_settings_listenif_spin_any);
-            }
-
-            this.dataStr.add(displayName + actualName);
-        }
 
         // update Spinner
         this.handler.post(new Runnable() {

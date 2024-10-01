@@ -95,10 +95,20 @@ public class MainActivity extends AppCompatActivity {
     private Defaults mDefaults;
 
 
+    private BroadcastReceiver debugBrRec;
+    public final static String ACTION_ONBOOT_DEBUG = "net.christianbeier.droidvnc_ng.ONBOOT_DEBUG";
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        this.debugBrRec = new OnBootReceiver();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_ONBOOT_DEBUG);
+        ContextCompat.registerReceiver(this, this.debugBrRec, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+
 
         final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         mDefaults = new Defaults(this);
@@ -130,6 +140,16 @@ public class MainActivity extends AppCompatActivity {
             }
 
         });
+
+
+        Button btnDebugOnBoot = findViewById(R.id.debug_onboot);
+        btnDebugOnBoot.setOnClickListener(view -> {
+                Intent in = new Intent(ACTION_ONBOOT_DEBUG);
+                in.setPackage(MainActivity.this.getPackageName());
+                MainActivity.this.sendBroadcast(in);
+                Log.w(TAG, "DOES THIS WORK?");
+        });
+
 
         mAddress = findViewById(R.id.address);
 
@@ -318,7 +338,7 @@ public class MainActivity extends AppCompatActivity {
         listenInterfaceSpin.setOnItemSelectedListener(new OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                NetworkInterfaceTester.NetIfData d = (NetworkInterfaceTester.NetIfData)parent.getItemAtPosition(pos);
+                NetIfData d = (NetIfData)parent.getItemAtPosition(pos);
                 if(!(prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, null) == null && d.getName().equals(mDefaults.getListenInterface()))) {
                     SharedPreferences.Editor ed = prefs.edit();
                     ed.putString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, d.getName());
@@ -333,7 +353,7 @@ public class MainActivity extends AppCompatActivity {
         });
         // Restore last selected interface
         listenInterfaceSpin.setSelection(
-            lsif.getItemPositionByIfName(
+            lsif.getItemPositionByOptionId(
                prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, mDefaults.getListenInterface())));
 
 
@@ -649,7 +669,7 @@ public class MainActivity extends AppCompatActivity {
 
             }
         };
-        IntentFilter filter = new IntentFilter();
+         filter = new IntentFilter();
         filter.addAction(MainService.ACTION_START);
         filter.addAction(MainService.ACTION_STOP);
         filter.addAction(MainService.ACTION_CONNECT_REVERSE);
@@ -776,6 +796,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
+        unregisterReceiver(this.debugBrRec);
         unregisterReceiver(mMainServiceBroadcastReceiver);
     }
 
