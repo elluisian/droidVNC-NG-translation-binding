@@ -74,7 +74,9 @@ public class NetworkInterfaceTester extends ConnectivityManager.NetworkCallback 
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                 .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
-                .addTransportType(NetworkCapabilities.TRANSPORT_VPN).build(),
+                .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) // This is needed, otherwise, VPN start/stop is not detected
+                .build(),
             this
         );
     }

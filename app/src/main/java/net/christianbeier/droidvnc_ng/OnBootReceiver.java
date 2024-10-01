@@ -78,7 +78,7 @@ public class OnBootReceiver extends BroadcastReceiver {
                 // Check for availability of listenIf
                 String listenIf = prefs.getString(Constants.PREFS_KEY_SETTINGS_LISTEN_INTERFACE, defaults.getListenInterface());
                 NetworkInterfaceTester nit = NetworkInterfaceTester.getInstance(context);
-                if (nit.isIfEnabled(listenIf)) {
+                if (!nit.isIfEnabled(listenIf)) {
                     Log.w(TAG, "onReceive: interface \"" + listenIf + "\" not available, sending a notification");
                     this.sendNotification(context, listenIf);
                     return;
