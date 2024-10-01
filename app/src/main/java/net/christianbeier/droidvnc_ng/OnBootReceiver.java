@@ -24,6 +24,7 @@ package net.christianbeier.droidvnc_ng;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
@@ -51,8 +52,14 @@ import java.io.IOException;
 
 public class OnBootReceiver extends BroadcastReceiver {
     private static final String TAG = "OnBootReceiver";
-    public static String NOTIFICATION_ID = "notification-id";
-    public static String NOTIFICATION = "notification" ;
+
+    // Stuff for the notification, in case the listenIf is not available
+    private static NotificationManager notifManager;
+    private static String NTCHN_NAME = "NTCHN onBootReceiver";
+    private static int NOTIFICATION_ID = 34;
+    private static NotificationChannel notifChannel;
+
+
 
 
     public void onReceive(Context context, Intent arg1) {
@@ -114,26 +121,44 @@ public class OnBootReceiver extends BroadcastReceiver {
     }
 
 
-    private void sendNotification(Context context, String listenIf) {
-        NotificationManager manager = context.getSystemService(NotificationManager.class);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel serviceChannel = new NotificationChannel(
-                context.getPackageName(),
-                "ListenIf NA Channel",
-                NotificationManager.IMPORTANCE_DEFAULT
-            );
-            manager.createNotificationChannel(serviceChannel);
-        }
+    /*
+     * Stuff for notifications
+     */
+    private void sendNotification(Context context, String listenIf) {
+        this.setupNotificationChannel(context);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, context.getPackageName())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getResources().getString(R.string.app_name))
             .setContentText(
                  String.format("Failed to connect to interface \"%s\", is it down perhaps?", listenIf))
-            .setSilent(false)
-            .setOngoing(true);
+            .setSilent(true)
+            .setOngoing(false);
 
-        manager.notify(9, builder.build());
+        if (Build.VERSION.SDK_INT >= 31) {
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
+        }
+
+        OnBootReceiver.notifManager.notify(NOTIFICATION_ID, builder.build());
+    }
+
+
+    private void setupNotificationChannel(Context context) {
+        if (OnBootReceiver.notifManager == null) {
+            OnBootReceiver.notifManager = context.getSystemService(NotificationManager.class);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (OnBootReceiver.notifChannel == null) {
+                OnBootReceiver.notifChannel = new NotificationChannel(
+                    context.getPackageName(),
+                    NTCHN_NAME,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                );
+
+                OnBootReceiver.notifManager.createNotificationChannel(OnBootReceiver.notifChannel);
+            }
+        }
     }
 }
